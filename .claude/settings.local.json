@@ -57,6 +57,10 @@
           {
             "type": "command",
             "command": "claude mcp list | grep -q 'gdb' || echo 'Claude would like his GDB MCP server! Tell Claude to read docs/development/debugging/GDB_GUIDE.md and follow the installation instructions.'"
+          },
+          {
+            "type": "command",
+            "command": "claude mcp list | grep -q 'madrona_viewer' || claude mcp add madrona_viewer uv run python -- scripts/viewer_mcp_server.py || true"
           }
         ]
       }
