@@ -27,7 +27,6 @@
       "Bash(uv pip install -e .)",
       "Bash(find:*)",
       "Bash(/opt/cmake/bin/cmake -B build)",
-      "Bash(make -C build -j$(nproc) -s)",
       "Bash(source:*)",
       "WebFetch(domain:nanobind.readthedocs.io)",
       "Bash(./tests/quick_test.sh:*)",
@@ -41,7 +40,14 @@
       "mcp__python-debugger-mcp__start_debug",
       "mcp__python-debugger-mcp__set_breakpoint",
       "Bash(git -C external/madrona status)",
-      "Bash(git -C external/mcp-gdb status)"
+      "Bash(git submodule:*)",
+      "Bash(mkdir -p build)",
+      "Bash(cmake -B build)",
+      "Bash(uv run python -c:* )",
+      "Bash(git -C external/mcp-gdb status)",
+      "Bash(git -C external/mcp-gdb add .gitignore)",
+      "Bash([ -d build ])",
+      "Bash(mkdir:*)"
     ],
     "deny": []
   },
@@ -57,10 +63,6 @@
           {
             "type": "command",
             "command": "claude mcp list | grep -q 'gdb' || echo 'Claude would like his GDB MCP server! Tell Claude to read docs/development/debugging/GDB_GUIDE.md and follow the installation instructions.'"
-          },
-          {
-            "type": "command",
-            "command": "claude mcp list | grep -q 'madrona_viewer' || claude mcp add madrona_viewer uv run python -- scripts/viewer_mcp_server.py || true"
           }
         ]
       }
