@@ -151,13 +151,17 @@ static void resetAgentPhysics(Engine &ctx) {
  * ONLY for physics entities, not render-only.
  */
 static void setupEntityPhysics(Engine& ctx, Entity e, uint32_t objectId,
-                              Vector3 pos, Quat rot, Diag3x3 scale, int32_t entityTypeValue, int32_t responseTypeValue) {
+                              Vector3 pos, Quat rot, Diag3x3 scale, int32_t entityTypeValue, int32_t responseTypeValue,
+                              bool triggersDone = false) {
     EntityType entityType = static_cast<EntityType>(entityTypeValue);
     ResponseType responseType = static_cast<ResponseType>(responseTypeValue);
     
     setupRigidBodyEntity(ctx, e, pos, rot, objectId,
                        entityType, responseType, scale);
     registerRigidBodyEntity(ctx, e, objectId);
+    
+    // Set the TriggersEpisodeDone component
+    ctx.get<TriggersEpisodeDone>(e).triggers = triggersDone ? 1 : 0;
 }
 
 /**
@@ -187,6 +191,8 @@ static void createFloorPlane(Engine &ctx)
         AssetIDs::PLANE,
         EntityType::None, // Floor plane type should never be queried
         ResponseType::Static);
+    // Floor never triggers done
+    ctx.get<TriggersEpisodeDone>(ctx.data().floorPlane).triggers = 0;
 }
 
 /**
@@ -307,7 +313,8 @@ static void resetPersistentEntities(Engine &ctx)
                  } else {
                      int32_t entityTypeValue = level.tile_entity_type[i];
                      int32_t responseTypeValue = level.tile_response_type[i];
-                     setupEntityPhysics(ctx, e, objectId, Vector3{x, y, z}, rotation, scale, entityTypeValue, responseTypeValue);
+                     // Pass done_on_collide flag from level to mark entities that trigger done
+                    setupEntityPhysics(ctx, e, objectId, Vector3{x, y, z}, rotation, scale, entityTypeValue, responseTypeValue, level.done_on_collide);
                  }
              }
          }
@@ -416,7 +423,8 @@ static void generateFromCompiled(Engine &ctx, CompiledLevel* level)
                 } else {
                     int32_t entityTypeValue = level->tile_entity_type[i];
                     int32_t responseTypeValue = level->tile_response_type[i];
-                    setupEntityPhysics(ctx, entity, objectId, position, rotation, scale, entityTypeValue, responseTypeValue);
+                    // Pass done_on_collide flag from level to mark entities that trigger done
+                    setupEntityPhysics(ctx, entity, objectId, position, rotation, scale, entityTypeValue, responseTypeValue, level->done_on_collide);
                 }
             }
         }

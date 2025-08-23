@@ -46,6 +46,7 @@ void Sim::registerTypes(ECSRegistry &registry, const Config &cfg)
     registry.registerComponent<Progress>();
     registry.registerComponent<StepsRemaining>();
     registry.registerComponent<EntityType>();
+    registry.registerComponent<TriggersEpisodeDone>();
 
     // [REQUIRED_INTERFACE] Reset singleton - every episodic env needs this
     registry.registerSingleton<WorldReset>();
@@ -302,6 +303,70 @@ inline void rewardSystem(Engine &ctx,
     }
 }
 
+// [GAME_SPECIFIC] Check for collisions between agents and objects that trigger episode end
+// This system will use proper physics collision data once the physics system is updated
+inline void agentCollisionSystem(Engine &ctx,
+                                Entity agent_entity,
+                                Position agent_pos,
+                                EntityType agent_type,
+                                Done &done)
+{
+    // Only process agents
+    if (agent_type != EntityType::Agent) {
+        return;
+    }
+    
+    // Check if done_on_collide is enabled for this level
+    const CompiledLevel &level = ctx.singleton<CompiledLevel>();
+    if (!level.done_on_collide) {
+        return;
+    }
+    
+    // POC: Query ContactConstraint entities to detect collisions
+    // ContactConstraints are temporary entities created during narrowphase
+    bool collision_detected = false;
+    Entity colliding_entity = Entity::none();
+    
+    // Query all active contact constraints using iterateQuery
+    auto contact_query = ctx.query<ContactConstraint>();
+    ctx.iterateQuery(contact_query, [&](ContactConstraint &contact) {
+        // Get entities from the contact's location references
+        Entity ref_entity = ctx.get<Entity>(contact.ref);
+        Entity alt_entity = ctx.get<Entity>(contact.alt);
+        
+        // Check if this agent is involved in the contact
+        if (ref_entity == agent_entity || alt_entity == agent_entity) {
+            collision_detected = true;
+            colliding_entity = (ref_entity == agent_entity) ? alt_entity : ref_entity;
+            
+            // Debug output for POC
+            printf("COLLISION DETECTED! Agent %u collided with entity %u\n",
+                   agent_entity.id, colliding_entity.id);
+            printf("  Contact normal: (%.2f, %.2f, %.2f)\n",
+                   contact.normal.x, contact.normal.y, contact.normal.z);
+            printf("  Num contact points: %d\n", contact.numPoints);
+            
+            // Check if the other entity triggers episode done
+            auto other_type = ctx.get<EntityType>(colliding_entity);
+            
+            // Try to get the TriggersEpisodeDone component
+            // getCheck returns ResultRef which can be checked for validity
+            auto triggers_ref = ctx.getCheck<TriggersEpisodeDone>(colliding_entity);
+            if (triggers_ref.valid()) {
+                TriggersEpisodeDone &triggers = triggers_ref.value();
+                if (triggers.triggers == 1) {
+                    done.v = 1;
+                    printf("  DONE triggered by collision!\n");
+                }
+            }
+        }
+    });
+    
+    if (!collision_detected) {
+        // Debug: No collisions for this agent this frame
+    }
+}
+
 // [REQUIRED_INTERFACE] Keep track of the number of steps remaining in the episode and
 // notify training that an episode has completed by
 // setting done = 1 on the final step of the episode
@@ -371,12 +436,21 @@ void Sim::setupTasks(TaskGraphManager &taskgraph_mgr, const Config &cfg)
     auto phys_done = phys::PhysicsSystem::setupCleanupTasks(
         builder, {agent_zero_vel});
 
+    // [GAME_SPECIFIC] Check for collisions that trigger episode end
+    auto collision_sys = builder.addToGraph<ParallelForNode<Engine,
+        agentCollisionSystem,
+            Entity,
+            Position,
+            EntityType,
+            Done
+        >>({phys_done});
+
     // [REQUIRED_INTERFACE] Check if the episode is over
     auto done_sys = builder.addToGraph<ParallelForNode<Engine,
         stepTrackerSystem,
             StepsRemaining,
             Done
-        >>({phys_done});
+        >>({collision_sys});
 
     // [REQUIRED_INTERFACE] Compute reward - only given at episode end
     auto reward_sys = builder.addToGraph<ParallelForNode<Engine,

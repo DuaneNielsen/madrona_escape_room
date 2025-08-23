@@ -106,6 +106,12 @@ namespace madEscape {
         float maxY;
     };
 
+    // [GAME_SPECIFIC]
+    // Component to mark entities that trigger episode termination on collision
+    // Used with CompiledLevel's done_on_collide flag
+    struct TriggersEpisodeDone {
+        int32_t triggers;  // 1 if this entity triggers done on collision, 0 otherwise
+    };
 
 
     // [GAME_SPECIFIC]
@@ -123,7 +129,7 @@ namespace madEscape {
     // [BOILERPLATE]
     // Generic archetype for entities that need physics but don't have custom
     // logic associated with them.
-    struct PhysicsEntity : public madrona::Archetype<RigidBody, EntityType, madrona::render::Renderable> {};
+    struct PhysicsEntity : public madrona::Archetype<RigidBody, EntityType, TriggersEpisodeDone, madrona::render::Renderable> {};
 
     // [GAME_SPECIFIC]
     // Archetype for entities that only need rendering, no physics
